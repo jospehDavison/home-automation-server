@@ -64,12 +64,13 @@ namespace home_automation_server
         /// <param name="commandID"></param>
         public static void commandDelegation(string commandID)
         {
-            if (commandID == "MediaPlayPause")
+            if (commandID == "MediaPlayPause") //play pause
             {
                 const int VK_MEDIA_PLAY_PAUSE = 0xB3;
                 PressKeys(VK_MEDIA_PLAY_PAUSE);
             }
-            else if (commandID.Contains("MediaVolume"))
+
+            else if (commandID.Contains("MediaVolume")) //volume
             {
                 if (commandID.Contains("Up"))
                 {
@@ -88,11 +89,13 @@ namespace home_automation_server
                     }
                 }
             }
-            else if (commandID == "new")
+
+            else if (commandID == "new") //placeholder
             {
 
             }
-            else if (commandID == "new2")
+
+            else if (commandID == "new2") //placeholder
             {
 
             }
