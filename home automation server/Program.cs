@@ -13,7 +13,7 @@ namespace home_automation_server
 
         private const int port = 1200;
         UdpClient listener = new UdpClient(port);
-        IPEndPoint groupEP = new IPEndPoint(IPAddress.Any, port); //declaring new listener
+        static IPEndPoint groupEP = new IPEndPoint(IPAddress.Any, port); //declaring new listener
 
         /// <summary>
         /// initiates program.
@@ -33,17 +33,13 @@ namespace home_automation_server
         {
             Console.Title = "Home Automation Server";
             Console.WriteLine("~Home Automation Server Start Up~");
+            Console.WriteLine("Waiting for broadcast...");
             try
             {
                 while (true)
                 {
-                    Console.WriteLine("Waiting for broadcast.");
-                    byte[] bytes = listener.Receive(ref groupEP);
-
+                    byte[] bytes = listener.Receive(ref groupEP);                    
                     string commandID = Encoding.ASCII.GetString(bytes);
-
-                    Console.WriteLine($"Recieved broadcast from {groupEP} :");
-                    Console.WriteLine($"{commandID}");
 
                     commandDelegation(commandID);
                 }
@@ -62,34 +58,36 @@ namespace home_automation_server
         /// recieves commandID and decides which key to press
         /// </summary>
         /// <param name="commandID"></param>
-        public static void commandDelegation(string commandID)
+        public void commandDelegation(string commandID)
         {
-            if (commandID == "MediaPlayPause") //play pause
+            if (commandID == PLAYPAUSE) //play pause
             {
                 const int VK_MEDIA_PLAY_PAUSE = 0xB3;
+
                 PressKeys(VK_MEDIA_PLAY_PAUSE);
+                WriteToScreen("" ,commandID);
             }
 
-            else if (commandID.Contains("MediaVolume")) //volume
+            else if (commandID == VOLUP)
             {
-                if (commandID.Contains("Up"))
-                {
-                    const int VK_VOLUME_UP = 0xAF;
-                    for (int i = 0; i < 5; i++)
-                    {
-                        PressKeys(VK_VOLUME_UP);
-                    }
-                }
-                else if (commandID.Contains("Down"))
-                {
-                    const int VK_VOLUME_DOWN = 0xAE;
-                    for (int i = 0; i < 5; i++)
-                    {
-                        PressKeys(VK_VOLUME_DOWN);
-                    }
-                }
+                 const int VK_VOLUME_UP = 0xAF;
+                 for (int i = 0; i < 5; i++)
+                 {
+                     PressKeys(VK_VOLUME_UP);
+                 }
+                 //write to screen
             }
 
+            else if (commandID == VOLDOWN)
+            {
+                const int VK_VOLUME_DOWN = 0xAE;
+                for (int i = 0; i < 5; i++)
+                {
+                    PressKeys(VK_VOLUME_DOWN);
+                }                 
+                //write to screen
+            }  
+            
             else if (commandID == "new") //placeholder
             {
 
@@ -99,7 +97,21 @@ namespace home_automation_server
             {
 
             }
-        }       
+        }
+        
+        /// <summary>
+        /// writes necesary information to the console 
+        /// </summary>
+        /// <param name="playPause"></param>
+        /// <param name="lastCommand"></param>
+         public static void WriteToScreen(string volume, string lastCommand)
+        {
+            Console.Clear();
+            if (!(volume == "")){
+                Console.WriteLine($"{volume}");
+            }
+            Console.WriteLine($"Recieved {lastCommand} request from {groupEP} :");
+        }
 
         /// <summary>
         /// key presser; recieves key code and presses it.
@@ -113,5 +125,9 @@ namespace home_automation_server
             keybd_event(key, 0, KEYEVENTIF_KEYDOWN, 0);
             keybd_event(key, 0, KEYEVENTIF_KEYUP, 0);
         }
+
+        readonly string PLAYPAUSE = "0"; //Play/pause packet
+        readonly string VOLUP = "1"; //Volume up packet
+        readonly string VOLDOWN = "2"; //Volume down packet
     }
 }
