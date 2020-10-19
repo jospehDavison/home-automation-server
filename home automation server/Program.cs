@@ -12,6 +12,7 @@ namespace home_automation_server
         internal static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo); //keyboard event function from win32
 
         private const int port = 1200;
+
         UdpClient listener = new UdpClient(port);
         static IPEndPoint groupEP = new IPEndPoint(IPAddress.Any, port); //declaring new listener
 
@@ -65,7 +66,7 @@ namespace home_automation_server
                 const int VK_MEDIA_PLAY_PAUSE = 0xB3;
 
                 PressKeys(VK_MEDIA_PLAY_PAUSE);
-                WriteToScreen("" ,commandID);
+                WriteToScreen(commandID,"");
             }
 
             else if (commandID == VOLUP)
@@ -75,7 +76,7 @@ namespace home_automation_server
                  {
                      PressKeys(VK_VOLUME_UP);
                  }
-                 //write to screen
+                WriteToScreen(commandID,"");
             }
 
             else if (commandID == VOLDOWN)
@@ -84,13 +85,13 @@ namespace home_automation_server
                 for (int i = 0; i < 5; i++)
                 {
                     PressKeys(VK_VOLUME_DOWN);
-                }                 
-                //write to screen
+                }
+                WriteToScreen(commandID, "");
             }  
             
-            else if (commandID == "new") //placeholder
+            else if (commandID.Contains(COLOR)) //placeholder
             {
-
+                WriteToScreen(commandID,"");
             }
 
             else if (commandID == "new2") //placeholder
@@ -104,11 +105,11 @@ namespace home_automation_server
         /// </summary>
         /// <param name="playPause"></param>
         /// <param name="lastCommand"></param>
-         public static void WriteToScreen(string volume, string lastCommand)
+         public static void WriteToScreen(string lastCommand, string info)
         {
             Console.Clear();
-            if (!(volume == "")){
-                Console.WriteLine($"{volume}");
+            if (!(info == "")){
+                Console.WriteLine($"{info}");
             }
             Console.WriteLine($"Recieved {lastCommand} request from {groupEP} :");
         }
@@ -129,5 +130,6 @@ namespace home_automation_server
         readonly string PLAYPAUSE = "0"; //Play/pause packet
         readonly string VOLUP = "1"; //Volume up packet
         readonly string VOLDOWN = "2"; //Volume down packet
+        readonly string COLOR = "3"; //listen for color packet
     }
 }
