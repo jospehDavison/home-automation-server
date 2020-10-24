@@ -3,6 +3,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
 
 namespace home_automation_server
 {
@@ -11,10 +14,16 @@ namespace home_automation_server
         [DllImport("user32.dll")]
         internal static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo); //keyboard event function from win32
 
-        private const int port = 1200;
+        public List<lightClient> lightClients = new List<lightClient>();
 
-        UdpClient listener = new UdpClient(port);
-        static IPEndPoint groupEP = new IPEndPoint(IPAddress.Any, port); //declaring new listener
+        //declaring new instance of udp client and ipendpoint on a port
+        public const int commandPort = 1200;
+        UdpClient udpCommandClient = new UdpClient(commandPort);
+        static IPEndPoint groupEP = new IPEndPoint(IPAddress.Any, commandPort);
+
+        //declaring new instance of tcp client 
+        public const int lightPort = 1201;
+        TcpListener tcpLightListener;
 
         /// <summary>
         /// initiates program.
@@ -34,24 +43,53 @@ namespace home_automation_server
         {
             Console.Title = "Home Automation Server";
             Console.WriteLine("~Home Automation Server Start Up~");
+
+            tcpLightListener = new TcpListener(IPAddress.Any, lightPort);
+            tcpLightListener.Start();
+
+            new Thread(new ThreadStart(commandListener)).Start();
+            new Thread(new ThreadStart(lightListener)).Start();
+        }
+
+        /// <summary>
+        /// listener for tcp light connections
+        /// </summary>
+        public void lightListener()
+        {
+            Console.WriteLine("Waiting for light connection...");
+            while (true)
+            {
+                TcpClient tcpLightClient = tcpLightListener.AcceptTcpClient();
+
+                int index = lightClients.Count;
+                lightClient lightClient = new lightClient(this, tcpLightClient, index);
+                lightClients.Add(lightClient);
+            }
+        }
+
+        /// <summary>
+        /// listener for udp connections
+        /// </summary>
+        public void commandListener()
+        {
             Console.WriteLine("Waiting for broadcast...");
             try
             {
                 while (true)
                 {
-                    byte[] bytes = listener.Receive(ref groupEP);                    
-                    string commandID = Encoding.ASCII.GetString(bytes);
+                    byte[] idBytes = udpCommandClient.Receive(ref groupEP);
+                    string commandID = Encoding.ASCII.GetString(idBytes);
 
                     commandDelegation(commandID);
                 }
-            } 
+            }
             catch (SocketException e)
             {
                 Console.WriteLine(e);
             }
             finally
             {
-                listener.Close();
+                udpCommandClient.Close();
             }
         }
 
@@ -66,7 +104,7 @@ namespace home_automation_server
                 const int VK_MEDIA_PLAY_PAUSE = 0xB3;
 
                 PressKeys(VK_MEDIA_PLAY_PAUSE);
-                WriteToScreen(commandID,"");
+                WriteToScreen(commandID,"PP");
             }
 
             else if (commandID == VOLUP)
@@ -76,7 +114,7 @@ namespace home_automation_server
                  {
                      PressKeys(VK_VOLUME_UP);
                  }
-                WriteToScreen(commandID,"");
+                WriteToScreen(commandID,"UP");
             }
 
             else if (commandID == VOLDOWN)
@@ -86,12 +124,19 @@ namespace home_automation_server
                 {
                     PressKeys(VK_VOLUME_DOWN);
                 }
-                WriteToScreen(commandID, "");
+                WriteToScreen(commandID, "DOWN");
             }  
             
-            else if (commandID.Contains(COLOR)) //placeholder
+            else if (commandID.Contains("#")) //placeholder
             {
-                WriteToScreen(commandID,"");
+                WriteToScreen(commandID, "COLOUR");
+
+                //send color to light aplications
+                for (int i = 0; i<lightClients.Count;i++)
+                {
+                    lightClient light = lightClients[i];
+                    light.sendLightCode(commandID);
+                }
             }
 
             else if (commandID == "new2") //placeholder
@@ -105,13 +150,13 @@ namespace home_automation_server
         /// </summary>
         /// <param name="playPause"></param>
         /// <param name="lastCommand"></param>
-         public static void WriteToScreen(string lastCommand, string info)
+         public void WriteToScreen(string lastCommand, string info)
         {
-            Console.Clear();
+            Console.WriteLine($"{lastCommand}");
+
             if (!(info == "")){
-                Console.WriteLine($"{info}");
+                Console.WriteLine($"Recieved {info} request from {groupEP} :");
             }
-            Console.WriteLine($"Recieved {lastCommand} request from {groupEP} :");
         }
 
         /// <summary>
@@ -130,6 +175,112 @@ namespace home_automation_server
         readonly string PLAYPAUSE = "0"; //Play/pause packet
         readonly string VOLUP = "1"; //Volume up packet
         readonly string VOLDOWN = "2"; //Volume down packet
-        readonly string COLOR = "3"; //listen for color packet
+    }
+
+
+
+
+    public class lightClient
+    {
+        public int index;
+        private TcpClient client;
+        private NetworkStream netStream;
+        private BinaryReader br;
+        private BinaryWriter bw;
+        Program program;
+
+
+        /// <summary>
+        /// define lightClient
+        /// </summary>
+        /// <param name="p"></param>
+        /// <param name="C"></param>
+        /// <param name="i"></param>
+        public lightClient(Program p , TcpClient C, int i)
+        {
+            client = C;
+            program = p;
+            index = i;
+
+            new Thread(new ThreadStart(setupConn)).Start();
+        }
+
+        /// <summary>
+        /// sees if connection is ok
+        /// </summary>
+        void setupConn()
+        {
+            try
+            {
+                netStream = client.GetStream();
+                br = new BinaryReader(netStream, Encoding.UTF8);
+                bw = new BinaryWriter(netStream, Encoding.UTF8);
+
+                bw.Write(OK);
+                bw.Flush();
+
+                byte reply = br.ReadByte();
+                if (reply == OK)
+                {
+                    Console.WriteLine("light connected");
+                    reciever();
+                }
+                else
+                {
+                    Console.WriteLine("closing connection");
+                    closeConn();
+                }
+            }
+            catch
+            {
+                Console.WriteLine("error");
+                closeConn();
+            }
+        }
+
+        private void reciever()
+        {
+            try
+            {
+                while (client.Connected)
+                {
+                    byte packet = br.ReadByte();
+                    if (packet == LOGOUT)
+                    {
+                        closeConn();
+                        Console.WriteLine("light removed");
+                    }
+                }
+            }
+            catch
+            {
+
+            }
+        }
+
+        public void sendLightCode(string lightCode)
+        {
+            bw.Write(lightCode);
+            bw.Flush();
+        }
+
+        private void closeConn()
+        {
+            bw.Close();
+            br.Close();
+            netStream.Close();
+            client.Close();
+
+            program.lightClients.RemoveAt(index);
+
+            for(int i = index; i < program.lightClients.Count; i++)
+            {
+                lightClient c = program.lightClients[i];
+                c.index = i;
+            }
+        }
+
+        readonly byte OK = 3; //ok packet
+        readonly byte LOGOUT = 4;
     }
 }
