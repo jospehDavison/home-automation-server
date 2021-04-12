@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <RootNamespace>home_automation_server</RootNamespace>
+    <StartupObject>home_automation_server.Program</StartupObject>
+    <ApplicationIcon>home automation server.ico</ApplicationIcon>
+    <AssemblyName>Home Automation Server</AssemblyName>
+    <NeutralLanguage />
   </PropertyGroup>
 
 </Project>
